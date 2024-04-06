@@ -1,0 +1,2687 @@
+package yin.source.com.midimusicbooksample;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Environment;
+import android.os.StrictMode;
+import android.support.v4.app.ActivityCompat;
+import android.util.Log;
+import android.view.View;
+import android.widget.Button;
+import android.widget.TextView;
+import android.widget.Toast;
+import java.io.BufferedReader;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+/* import相关class */
+public class FileActivity extends Activity
+{
+    /*
+     * 变量声明 filename：上传后在服务器上的文件名称 uploadFile：要上传的文件路径 actionUrl：服务器上对应的程序路径
+     */
+    private static final int FILE_SELECT_CODE = 0;
+    private static final String TAG = "VideoActivity";
+    private String downFile_dir="/android_text/midi/";
+    private String down_midi="default.mid";
+    private String downFile;
+    private String uploadFile = null;
+    private String srcPath = uploadFile;
+    private String actionUrl = "http://121.199.75.173:8080/";
+    private TextView mText1;
+    private TextView mText2;
+    private TextView mText3;
+    private Button mButton;
+    private Button Open;
+    private  String result2;
+
+
+    @Override
+    public void onCreate(Bundle savedInstanceState)
+    {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_file);
+
+        if (android.os.Build.VERSION.SDK_INT > 9) {//允许访问网络可以在主线程
+            StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+            StrictMode.setThreadPolicy(policy);
+        }
+
+        //获取手机的根目录
+        String str = null;
+        boolean sdCardExist = Environment.getExternalStorageState()
+                .equals(android.os.Environment.MEDIA_MOUNTED); //判断sd卡是否存在
+        if (sdCardExist)
+        {
+            File sdDir = Environment.getExternalStorageDirectory();//获取根目录
+            str = Environment.getExternalStorageDirectory().getAbsolutePath();   //获取绝对路径到字符串
+        }
+
+        uploadFile = str + uploadFile;
+        srcPath = str + srcPath;
+        downFile_dir = str+downFile_dir;
+
+
+        //读写权限 具体权限加在字符串里面
+        String[] PERMISSIONS_STORAGE = {
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                Manifest.permission.INTERNET
+        };
+        //请求状态码
+        int REQUEST_PERMISSION_CODE = 3;
+        //循环申请字符串数组里面的权限，在小米中是直接弹出一个权限框等待用户确认，确认一次既将上面数组里面的权限全部申请
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP) {
+            if (ActivityCompat.checkSelfPermission(FileActivity.this, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(FileActivity.this, PERMISSIONS_STORAGE, REQUEST_PERMISSION_CODE);
+            }
+        }
+
+        mText1 = (TextView) findViewById(R.id.TV1);
+
+        mText1.setText("文件路径：\n");
+        mText2 = (TextView) findViewById(R.id.TV2);
+        //mText2.setText("上传网址：\n" + actionUrl);
+        mText3 = (TextView) findViewById(R.id.TV_out);
+        /* 设置mButton的onClick事件处理 */
+        mButton = (Button) findViewById(R.id.B1);
+        Open = (Button)findViewById(R.id.open_file);
+
+        //生成五线谱
+        mButton.setOnClickListener(new View.OnClickListener()
+        {
+            public void onClick(View v)
+            {
+
+                /** 判断网络是否连接 */
+                ConnectivityManager connectivityManager = (ConnectivityManager)getSystemService(Context.CONNECTIVITY_SERVICE);
+                NetworkInfo info = connectivityManager.getActiveNetworkInfo();
+
+                if (info != null && info.isConnected()) {
+                    //String intentName = info.getTypeName();
+                    //Log.i("通了没！", "当前网络名称：" + intentName);
+                    if(mText1.getText().toString().trim().equals("文件路径："))
+                    {
+                        mText3.setText("请打开文件！");
+                    }
+                    else
+                    {
+
+                        mText3.setText("生成中......");
+                        new File(downFile_dir).mkdirs();
+
+                        result2 = uploadFile();
+                        //result2 = "40C<1拍> 40C<1拍> 47G<1拍> 47G<1拍> 49A<1拍> 49A<1拍> 47G<2拍> 45F<1拍> 45F<1拍> 44E<1拍> 44E<1拍> 42D<1拍> 42D<1拍> 40C<2拍> 47G<1拍> 47G<1拍> 45F<1拍> 45F<1拍> 44E<1拍> 44E<1拍> 42D<2拍> 47G<1拍> 47G<1拍> 45F<1拍> 45F<1拍> 44E<1拍> 44E<1拍> 42D<2拍> 40C<1拍> 40C<1拍> 47G<1拍> 47G<1拍> 49A<1拍> 49A<1拍> 47G<2拍> 45F<1拍> 45F<1拍> 44E<1拍> 44E<1拍> 42D<1拍> 42D<1拍> 40C<2拍>";
+                        SimpleDateFormat sTimeFormat=new SimpleDateFormat("yyyyMMdd_hhmmss");
+                        String date=sTimeFormat.format(new Date());
+                        down_midi = date+".mid";
+
+                        try {
+                            string_to_midifile(result2,downFile_dir,down_midi);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        //result2转换生成midi
+                        downFile = downFile_dir+down_midi;
+                        Intent intent_music = new Intent(getApplicationContext(), MainActivity.class);
+                        intent_music.putExtra("downFile", downFile);
+                        startActivity(intent_music);
+                        finish();
+/*
+
+                        CountDownLatch countDownLatch = new CountDownLatch(1);;
+                        Thread thread = new Thread(new Runnable() { // 匿名类的Runnable接口
+                            @Override
+                            public void run() {
+                                result2 = uploadFile();
+                                //result2 = "40C<1拍> 40C<1拍> 47G<1拍> 47G<1拍> 49A<1拍> 49A<1拍> 47G<2拍> 45F<1拍> 45F<1拍> 44E<1拍> 44E<1拍> 42D<1拍> 42D<1拍> 40C<2拍> 47G<1拍> 47G<1拍> 45F<1拍> 45F<1拍> 44E<1拍> 44E<1拍> 42D<2拍> 47G<1拍> 47G<1拍> 45F<1拍> 45F<1拍> 44E<1拍> 44E<1拍> 42D<2拍> 40C<1拍> 40C<1拍> 47G<1拍> 47G<1拍> 49A<1拍> 49A<1拍> 47G<2拍> 45F<1拍> 45F<1拍> 44E<1拍> 44E<1拍> 42D<1拍> 42D<1拍> 40C<2拍>";
+                                SimpleDateFormat sTimeFormat=new SimpleDateFormat("yyyyMMdd_hhmmss");
+                                String date=sTimeFormat.format(new Date());
+                                down_midi = date+".mid";
+
+                                try {
+                                    string_to_midifile(result2,downFile_dir,down_midi);
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                                //result2转换生成midi
+                                downFile = downFile_dir+down_midi;
+
+                            }
+                        });
+
+                        thread.start();
+                        try {
+                            countDownLatch.await();
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        Intent intent_music = new Intent(getApplicationContext(), MainActivity.class);
+                        intent_music.putExtra("downFile", downFile);
+                        startActivity(intent_music);
+                        finish();*/
+
+                    }
+
+                } else {
+                    Toast.makeText(getApplicationContext(),"未连接网络", Toast.LENGTH_SHORT).show();
+
+                }
+
+            }
+        });
+        //Open选择文件
+        Open.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mText3.setText("");
+                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                intent.setType("*/*");//设置类型，我这里是任意类型，任意后缀的可以这样写。
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                startActivityForResult(intent,1);
+            }
+        });
+    }
+
+
+    //选择文件的回调函数
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        String str = null;
+        boolean sdCardExist = Environment.getExternalStorageState()
+                .equals(android.os.Environment.MEDIA_MOUNTED); //判断sd卡是否存在
+        if (sdCardExist)
+        {
+            File sdDir = Environment.getExternalStorageDirectory();//获取根目录
+            str = Environment.getExternalStorageDirectory().getAbsolutePath();   //获取绝对路径到字符串
+        }
+        if (resultCode == Activity.RESULT_OK) {
+            if (requestCode == 1) {
+                Uri uri = data.getData();
+                //uploadFile = uri.getPath().toString();
+                //uploadFile  = uploadFile.replaceAll("/external_files/",str+"/");
+
+                uploadFile = UriUtils.getPath(getApplicationContext(),uri);
+
+                srcPath = uploadFile;
+                mText1.setText("文件路径：\n" + uploadFile);
+                Toast.makeText(this, "文件路径："+uri.getPath().toString(), Toast.LENGTH_SHORT).show();
+            }
+        }
+        if (requestCode == FILE_SELECT_CODE) {
+            Uri uri = data.getData();
+            Log.i(TAG, "------->" + uri.getPath());
+        }
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+
+    /* 上传文件至Server的方法 */
+    private String uploadFile()
+    {
+        String uploadUrl = " http://121.199.75.173:8080/upload_file_service/UploadServlet";
+        String end = "\r\n";
+        String twoHyphens = "--";
+        String boundary = "******";
+        String result2=null;
+        try
+        {
+            URL url = new URL(uploadUrl/*"http://127.0.0.1:8080/test/upload"*/);
+            HttpURLConnection httpURLConnection = (HttpURLConnection) url
+                    .openConnection();
+            httpURLConnection.setDoInput(true);
+            httpURLConnection.setDoOutput(true);
+            httpURLConnection.setUseCaches(false);
+            httpURLConnection.setRequestMethod("POST");
+            httpURLConnection.setRequestProperty("Connection", "Keep-Alive");
+            httpURLConnection.setRequestProperty("Charset", "UTF-8");
+            httpURLConnection.setRequestProperty("Content-Type",
+                    "multipart/form-data;boundary=" + boundary);
+
+            DataOutputStream dos = new DataOutputStream(httpURLConnection
+                    .getOutputStream());
+            dos.writeBytes(twoHyphens + boundary + end);
+            dos
+                    .writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\""
+                            + srcPath.substring(srcPath.lastIndexOf("/") + 1)
+                            + "\"" + end);
+            dos.writeBytes(end);
+
+            FileInputStream fis = new FileInputStream(srcPath);
+            byte[] buffer = new byte[8192]; // 8k
+            int count = 0;
+            while ((count = fis.read(buffer)) != -1)
+            {
+                dos.write(buffer, 0, count);
+
+            }
+            fis.close();
+
+            dos.writeBytes(end);
+            dos.writeBytes(twoHyphens + boundary + twoHyphens + end);
+            dos.flush();
+
+            InputStream is = httpURLConnection.getInputStream();
+            InputStreamReader isr = new InputStreamReader(is, "utf-8");
+            BufferedReader br = new BufferedReader(isr);
+            String cons = br.readLine();
+            result2 = br.readLine();
+            //mText3.setText(result2);
+            Toast.makeText(this, cons, Toast.LENGTH_LONG).show();
+            mText3.setText(cons);
+            dos.close();
+            is.close();
+
+        } catch (Exception e)
+        {
+            e.printStackTrace();
+            setTitle(e.getMessage());
+        }
+        return result2;
+    }
+    private void string_to_midifile(String result,String dir,String filename) throws IOException {
+        //字符串转 midi 代码
+        File f1 = new File(dir);
+        if(f1.isDirectory()){
+            //存在文件夹
+        }
+        else
+        {
+            //创建文件夹
+            f1.mkdir();
+        }
+
+        File f2 = new File(dir+filename);
+        if(f2.exists()){
+           //文件存在
+        }
+        else
+        {
+            //创建文件
+            f2.createNewFile();
+        }
+
+        midifile midi = new midifile(dir+filename);
+        midi.run(result);
+
+    }
+}
+
+package yin.source.com.midimusicbooksample;
+
+import android.app.AlertDialog;
+import android.content.DialogInterface;
+import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.media.MediaScannerConnection;
+import android.os.Bundle;
+import android.os.Environment;
+import android.support.annotation.NonNull;
+import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
+import android.view.KeyEvent;
+import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.SeekBar;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import com.source.yin.yinandroidutils.PermissionManager;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+
+import yin.source.com.midimusicbook.midi.baseBean.MidiFile;
+import yin.source.com.midimusicbook.midi.baseBean.MidiOptions;
+import yin.source.com.midimusicbook.midi.musicBook.MidiPlayer;
+import yin.source.com.midimusicbook.midi.musicBook.MusicBook;
+import yin.source.com.midimusicbook.midi.musicBook.Piano;
+
+public class MainActivity extends AppCompatActivity {
+
+
+    public static final int settingsRequestCode = 1;
+    // Debugging
+    private static final String TAG = "BluetoothChat";
+    private static final boolean D = true;
+
+    private MidiPlayer player; /* The play/stop/rewind toolbar */
+    private Piano piano; /* The piano at the top */ // 顶部的钢琴
+    private MusicBook sheet; /* The sheet music */ // 乐谱
+    private MidiFile midifile; /* The midi file to play */ // 需要播放的midi文件
+    private MidiOptions options; /* The options for sheet music and sound */ // 乐谱和声音的选项
+
+    private Button rewindButton;
+    /**
+     * The rewind button // 倒带按钮
+     */
+    private Button playButton;
+    /**
+     * The play/pause button // 播放暂停按钮
+     */
+    private Button stopButton;
+    /**
+     * The stop button // 停止按钮
+     */
+    private Button fastFwdButton;
+    /**
+     * The fast forward button // 快进按钮
+     */
+    private Button settingsButton;
+    /**
+     * The settings button // 设置按钮
+     */
+    private TextView speedText;
+    /**
+     * The "Speed %" label // 速度标签
+     */
+    private SeekBar speedBar;
+
+    private Button btnPause;
+
+    private Button btnRestart;
+    private Button btnPrint;
+    private PermissionManager permissionManager;
+
+    /**
+     * Create this SheetMusicActivity. The Intent should have two parameters: -
+     * data: The uri of the midi file to open. - MidiTitleID: The title of the
+     * song (String)
+     * 创建这个乐谱Activity.传过来的intent必须有两个参数：
+     * data:将要打开的midi文件的uri
+     * MidiTitleID:歌曲的标题
+     */
+    @Override
+    public void onCreate(Bundle state) {
+        super.onCreate(state);
+        setContentView(R.layout.activity_main);
+        createPlayerButton();
+//        player = (MidiPlayer) findViewById(R.id.midi_player);
+        player = new MidiPlayer(getApplicationContext());
+        piano = (Piano) findViewById(R.id.piano);
+        sheet = (MusicBook) findViewById(R.id.sheet);
+        btnPrint = findViewById(R.id.btn_print);
+        btnPrint.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                print();
+            }
+        });
+        String downFile;
+        final Intent intent = getIntent();
+        downFile = intent.getStringExtra("downFile");
+
+//        Toast.makeText(this, "文件路径："+downFile, Toast.LENGTH_SHORT).show();
+
+       // File fileFromAssets = FileManagerUtils.getFileFromAssets(downFile, this);
+        File file = new File(downFile);
+//        File fileFromAssets = FileManagerUtils.getFileFromAssets("piano_guide.mid", this);
+//        File fileFromAssets = FileManagerUtils.getFileFromAssets("Pachelbel__Canon_in_D_major.mid", this);
+//        midifile = new MidiFile(fileFromAssets, fileFromAssets.getName());
+        midifile = new MidiFile(file, file.getName());
+        // Initialize the settings (MidiOptions).
+        // If previous settings have been saved, used those
+        options = new MidiOptions(midifile);
+        options.scrollVert = true;
+        options.showMeasures = true;
+        //显示音名
+        options.showNoteLetters = 0;
+        createSheetMusic(options);
+
+
+    }
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event){
+        if((keyCode == KeyEvent.KEYCODE_BACK)){
+            Intent it = new Intent(getApplicationContext(),FileActivity.class);
+            startActivity(it);
+            finish();
+            return false;
+        }else{
+            return super.onKeyDown(keyCode,event);
+        }
+    }
+    private void print() {
+        permissionManager = new PermissionManager(this, new PermissionManager.PermissionResultCallBack() {
+            @Override
+            public void onPermissionGranted(String permission) {
+                sheet.saveMusicBookAsImages(new MusicBook.SaveMusicBookAsImagesCallback() {
+                    @Override
+                    public void onSuccess() {
+                        Toast.makeText(getApplicationContext(), "save success", Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onFail(String text) {
+                        Toast.makeText(getApplicationContext(), "save fail " + text, Toast.LENGTH_SHORT).show();
+                        Log.d("yzh", "save fail " + text);
+                    }
+                });
+            }
+
+            @Override
+            public void onPermissionDenied(String permission) {
+
+            }
+
+            @Override
+            public void shouldShowRequestPermissionRationale(String permission) {
+
+            }
+        });
+        permissionManager.writeExternalStorage();
+    }
+
+    private void createPlayerButton() {
+
+        rewindButton = (Button) findViewById(R.id.btn_rewind);
+        stopButton = (Button) findViewById(R.id.btn_stop);
+        playButton = (Button) findViewById(R.id.btn_play);
+        fastFwdButton = (Button) findViewById(R.id.btn_fast_forward);
+        settingsButton = (Button) findViewById(R.id.btn_setting);
+        rewindButton = (Button) findViewById(R.id.btn_rewind);
+//        speedBar = (SeekBar) findViewById(R.id.seek_speed);
+        speedText = (TextView) findViewById(R.id.tv_speed);
+        btnPause = findViewById(R.id.btn_pause);
+        btnRestart = findViewById(R.id.btn_restart);
+
+        rewindButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                player.Rewind();
+            }
+        });
+        stopButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                player.stop();
+            }
+        });
+        playButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                player.play();
+            }
+        });
+        fastFwdButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                player.FastForward();
+            }
+        });
+        settingsButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                showSettingDialog();
+            }
+        });
+        btnPause.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                player.pause();
+            }
+        });
+
+        btnRestart.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                player.stop();
+                player.play();
+            }
+        });
+//        speedBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+//            public void onProgressChanged(SeekBar bar, int progress,
+//                                          boolean fromUser) {
+//                speedText.setText("Speed: " + String.format("%03d", progress) + "%");
+//            }
+//
+//            public void onStartTrackingTouch(SeekBar bar) {
+//            }
+//
+//            public void onStopTrackingTouch(SeekBar bar) {
+//            }
+//        });
+
+    }
+
+    private void showSettingDialog() {
+        SettingDialog settingDialog = SettingDialog.newInstance(getApplicationContext(), options);
+        settingDialog.show(getSupportFragmentManager(), SettingDialog.class.getSimpleName());
+        settingDialog.setSettingCallback(new SettingDialog.SettingCallback() {
+            @Override
+            public void onSettingFinish(MidiOptions midiOptions) {
+                if (midiOptions != null) {
+                    createSheetMusic(midiOptions);
+                }
+            }
+        });
+    }
+
+    /**
+     * Create the SheetMusic view with the given options
+     */
+    private void createSheetMusic(MidiOptions options) {
+        if (!options.showPiano) {
+            piano.setVisibility(View.GONE);
+        } else {
+            piano.setVisibility(View.VISIBLE);
+        }
+        sheet.init(midifile, options);
+        sheet.setPlayer(player);
+        piano.setMidiFile(midifile, options, player);
+        piano.setShadeColors(options.colorLeftHandShade, options.colorRightHandShade);
+        player.setMidiFile(midifile, options);
+        sheet.callOnDraw();
+    }
+
+    /**
+     * When the menu button is pressed, initialize the menus.
+     */
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        if (player != null) {
+            player.pause();
+        }
+        MenuInflater inflater = getMenuInflater();
+        inflater.inflate(R.menu.sheet_menu, menu);
+        return true;
+    }
+
+    /**
+     * Callback when a menu item is selected. - Choose Song : Choose a new song
+     * - Song Settings : Adjust the sheet music and sound options - Save As
+     * Images: Save the sheet music as PNG images - Help : Display the HTML help
+     * screen
+     */
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.song_settings:
+                changeSettings();
+                return true;
+            case R.id.save_images:
+                showSaveImagesDialog();
+                return true;
+            case R.id.help:
+                showHelp();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+
+    /**
+     * To change the sheet music options, start the SettingsActivity. Pass the
+     * current MidiOptions as a parameter to the Intent. Also pass the 'default'
+     * MidiOptions as a parameter to the Intent. When the SettingsActivity has
+     * finished, the onActivityResult() method will be called.
+     */
+    private void changeSettings() {
+        MidiOptions defaultOptions = new MidiOptions(midifile);
+        Intent intent = new Intent(this, SettingsActivity.class);
+        intent.putExtra(SettingsActivity.settingsID, options);
+        intent.putExtra(SettingsActivity.defaultSettingsID, defaultOptions);
+        startActivityForResult(intent, settingsRequestCode);
+    }
+
+    /* Show the "Save As Images" dialog */
+    private void showSaveImagesDialog() {
+        LayoutInflater inflator = LayoutInflater.from(this);
+        final View dialogView = inflator.inflate(R.layout.save_images_dialog,
+                null);
+        final EditText filenameView = (EditText) dialogView
+                .findViewById(R.id.save_images_filename);
+        filenameView.setText(midifile.getFileName().replace("_", " "));
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Save As Images");
+        builder.setView(dialogView);
+        builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface builder, int whichButton) {
+                saveAsImages(filenameView.getText().toString());
+            }
+        });
+        builder.setNegativeButton("Cancel",
+                new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface builder, int whichButton) {
+                    }
+                });
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
+    /* Save the current sheet music as PNG images. */
+    private void saveAsImages(String name) {
+        String filename = name;
+        try {
+            filename = URLEncoder.encode(name, "utf-8");
+        } catch (UnsupportedEncodingException e) {
+        }
+        if (!options.scrollVert) {
+            options.scrollVert = true;
+            createSheetMusic(options);
+        }
+        try {
+            int numpages = sheet.getTotalPages();
+            for (int page = 1; page <= numpages; page++) {
+                Bitmap image = Bitmap.createBitmap(MusicBook.PageWidth + 40,
+                        MusicBook.PageHeight + 40, Bitmap.Config.ARGB_8888);
+                Canvas imageCanvas = new Canvas(image);
+                sheet.drawPage(imageCanvas, page);
+                File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES
+                        + "/MidiSheetMusic");
+                File file = new File(path, "" + filename + page + ".png");
+                path.mkdirs();
+                OutputStream stream = new FileOutputStream(file);
+                image.compress(Bitmap.CompressFormat.PNG, 0, stream);
+                image = null;
+                stream.close();
+
+                // Inform the media scanner about the file
+                MediaScannerConnection.scanFile(this,
+                        new String[]{file.toString()}, null, null);
+            }
+        } catch (IOException e) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setMessage("Error saving image to file "
+                    + Environment.DIRECTORY_PICTURES + "/MidiSheetMusic/"
+                    + filename + ".png");
+            builder.setCancelable(false);
+            builder.setPositiveButton("OK",
+                    new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int id) {
+                        }
+                    });
+            AlertDialog alert = builder.create();
+            alert.show();
+        } catch (NullPointerException e) {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setMessage("Ran out of memory while saving image to file "
+                    + Environment.DIRECTORY_PICTURES + "/MidiSheetMusic/"
+                    + filename + ".png");
+            builder.setCancelable(false);
+            builder.setPositiveButton("OK",
+                    new DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int id) {
+                        }
+                    });
+            AlertDialog alert = builder.create();
+            alert.show();
+        }
+    }
+
+    /**
+     * Show the HTML help screen.
+     */
+    private void showHelp() {
+//        Intent intent = new Intent(this, HelpActivity.class);
+//        startActivity(intent);
+    }
+
+    /**
+     * This is the callback when the SettingsActivity is finished. Get the
+     * modified MidiOptions (passed as a parameter in the Intent). Save the
+     * MidiOptions. The key is the CRC checksum of the midi data, and the value
+     * is a JSON dump of the MidiOptions. Finally, re-create the SheetMusic View
+     * with the new options.
+     */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent intent) {
+        // Recreate the sheet music with the new options
+        createSheetMusic(options);
+    }
+
+    /**
+     * When this activity resumes, redraw all the views
+     */
+    @Override
+    protected void onResume() {
+        super.onResume();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (permissionManager != null) {
+            permissionManager.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        }
+    }
+
+    /**
+     * When this activity pauses, stop the music
+     */
+    @Override
+    protected void onPause() {
+        if (player != null) {
+            player.pause();
+        }
+        super.onPause();
+    }
+}
+package yin.source.com.midimusicbooksample;
+
+import android.annotation.SuppressLint;
+import android.app.Activity;
+import android.content.Context;
+import android.content.res.AssetManager;
+import android.net.Uri;
+import android.os.Environment;
+import android.text.TextUtils;
+import android.webkit.MimeTypeMap;
+
+import java.io.File;
+import java.io.FileFilter;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * Created by yin on 2017/6/8.
+ */
+
+public class FileManagerUtils {
+
+    public static File getFileFromAssets(String fileNameInAssets, Activity activity) {
+        File file = new File(FileManagerUtils.getDiskCacheDir(activity).getPath() + "/" + fileNameInAssets);
+        if (file.exists()) {
+            return file;
+        }
+        InputStream inputStream;
+        Uri parse = Uri.parse("inputStream:///android_asset/" + fileNameInAssets);
+        String uriString = parse.toString();
+        if (uriString.startsWith("inputStream:///android_asset/")) {
+            AssetManager asset = activity.getResources().getAssets();
+            String filepath = uriString.replace("inputStream:///android_asset/", "");
+            try {
+                inputStream = asset.open(filepath);
+                FileOutputStream fos = new FileOutputStream(file);
+                byte[] buffer = new byte[1024];
+                int byteCount = 0;
+                while ((byteCount = inputStream.read(buffer)) != -1) {// 循环从输入流读取
+                    // buffer字节
+                    fos.write(buffer, 0, byteCount);// 将读取的输入流写入到输出流
+                }
+                fos.flush();// 刷新缓冲区
+                inputStream.close();
+                fos.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        return file;
+    }
+
+    /**
+     * 得到特定路径下有效文件
+     */
+    public static List<File> getFilesByFile(File file, FileFilter fileFilter) {
+        List<File> filterFile = new ArrayList<>();
+        if (file != null && file.exists()) {
+            File[] files = file.listFiles(fileFilter);
+            Collections.addAll(filterFile, files);
+        }
+        return filterFile;
+    }
+
+    /**
+     * 得到特定路径下有效文件
+     */
+    public static List<File> getFilesByPath(String path, FileFilter fileFilter) {
+        if (TextUtils.isEmpty(path)) {
+            return null;
+        }
+        File file = new File(path);
+        return getFilesByFile(file, fileFilter);
+    }
+
+    /**
+     * 检查是否存在上一级目录
+     *
+     * @return
+     */
+    public static boolean hasParent(String filePath) {
+        if (TextUtils.isEmpty(filePath)) {
+            return false;
+        }
+
+        File file = new File(filePath);
+        return hasParent(file);
+    }
+
+    /**
+     * 得到上一级目录
+     *
+     * @param filePath
+     * @return
+     */
+    public static String getParent(String filePath) {
+        if (TextUtils.isEmpty(filePath)) {
+            return "";
+        }
+
+        File file = new File(filePath);
+        return file.getParent();
+    }
+
+    /**
+     * 检查是否存在上一级目录
+     *
+     * @return
+     */
+    public static boolean hasParent(File file) {
+        if (file != null && file.exists()) {
+            return file.getParentFile() != null;
+        }
+
+        return false;
+    }
+
+    /**
+     * 得到文件名
+     */
+    public static String getFileName(File file) {
+        if (file != null) {
+            return file.getName();
+        }
+        return "";
+    }
+
+    /**
+     * 返回文件最后修改日期
+     */
+    public static String getFileLastDate(File file) {
+        if (file == null) {
+            return "";
+        }
+        long date = file.lastModified();
+        if (date == 0) {
+            return "";
+        }
+        @SuppressLint("SimpleDateFormat")
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy年MM月dd日");
+        return simpleDateFormat.format(new Date(date));
+    }
+
+    public static String getFileSize(File file) {
+        if (file.isFile()) {
+            float size = file.length() / 1024f;
+            if (size < 1024) {
+                if (size < 0.01) {
+                    size = 0.01f;
+                }
+                return String.format("%.2fKB", size);
+            }
+            size = size / 1024f;
+            return String.format("%.2fMB", size);
+        }
+        return "";
+    }
+
+    /**
+     * 获得文件的mimeType
+     *
+     * @param file
+     * @return
+     */
+    public static String getMimeType(File file) {
+        String suffix = getSuffix(file);
+        if (suffix == null) {
+            return "file/*";
+        }
+        String type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(suffix);
+        if (type != null && !type.isEmpty()) {
+            return type;
+        }
+        return "file/*";
+    }
+
+    /**
+     * 获得文件的后缀
+     *
+     * @param file
+     * @return
+     */
+    private static String getSuffix(File file) {
+        if (file == null || !file.exists() || file.isDirectory()) {
+            return null;
+        }
+        String fileName = file.getName();
+        if (fileName.equals("") || fileName.endsWith(".")) {
+            return null;
+        }
+        int index = fileName.lastIndexOf(".");
+        if (index != -1) {
+            return fileName.substring(index + 1).toLowerCase(Locale.US);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * 获取应用缓存目录
+     * 当SD卡存在或者SD卡不可被移除的时候，就调用getExternalCacheDir()方法来获取缓存路径，
+     * 否则就调用getCacheDir()方法来获取缓存路径。
+     * 前者获取到的就是 /sdcard/Android/data/<application package>/cache
+     * 后者获取到的是 /data/data/<application package>/cache 这个路径。
+     * 对应了系统设置应用详情里的“清除缓存”
+     * 应用卸载后此目录下的所有文件都会被删除
+     */
+
+    public static File getDiskCacheDir(Context context) {
+        File cacheFile = null;
+        if (Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState())
+                || !Environment.isExternalStorageRemovable()) {
+            File externalCacheDir = context.getExternalCacheDir();
+            if (externalCacheDir != null) {
+                cacheFile = externalCacheDir;
+            }
+        } else {
+            cacheFile = context.getCacheDir();
+        }
+        return cacheFile;
+    }
+
+    /**
+     * 获取应用存储文件目录
+     * 对应了系统设置应用详情里的“清除数据”
+     * 应用卸载后此目录下的所有文件都会被删除
+     */
+    public static File getDiskFileDir(Context context) {
+        return context.getExternalFilesDir(null);
+    }
+
+}
+package yin.source.com.midimusicbooksample;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+
+public class midifile {
+
+        private String filename;//写入文件地址
+        private String head = new String("4D 54 68 64 00 00 00 06 00 01 00 02 01 E0 4D 54 72 6B 00 00 00 1A 00 FF 03 03 31 32 33 00 FF 51 03 08 7A 23 00 FF 58 04 04 02 18 08 00 FF 2F 00 4D 54 72 6B -1");
+        private String end = new String("00 FF 2F 00 4D 54 72 6B 00 00 00 0E 00 FF 03 06 4D 61 72 6B 65 72 00 FF 2F 00 -1");
+
+        midifile(String filename)
+        {
+            this.filename = filename;
+        }
+        public void write_head() throws IOException//写头部分
+        {
+            write(head.toCharArray());
+        }
+        void write_end() throws IOException//写尾部分
+        {
+            write(end.toCharArray());
+        }
+
+        public void wirte_allnote(String Str_note,int size) throws IOException {
+            char[] note= Str_note.toCharArray();
+            /*-------------------写长度------------------*/
+            int count=0;
+            for (int i =0;i<size;i++)
+            {
+                if (note[i] == '>')
+                {
+                    count++;
+                }
+            }//for循环根据'>'的个数判断音符个数
+            int number = 28 + 9 * count;//计算音符段长度，28是固定有的长度
+            if (number <= 255)//长度只占一位
+            {
+                String Str_tmp=new String("00 00 00 -1");
+                char tmp[] = Str_tmp.toCharArray();
+                write(tmp);
+                File midi = new File(filename);//写入的二进制文件目录
+                FileOutputStream midiStream = new FileOutputStream(midi, true);
+                midiStream.write(number);
+                midiStream.close();
+                // fopen(this->filename, "ab");
+                //fwrite(&number, 1, 1, midi);
+                //fclose(midi);
+
+            }
+            else if (number > 255 && number <= 65535)//长度占两位
+            {
+                String Str_tmp=new String("00 00 -1");
+                char tmp[] = Str_tmp.toCharArray();
+                write(tmp);
+                File midi = new File(filename);//写入的二进制文件目录
+                FileOutputStream midiStream = new FileOutputStream(midi, true);
+                int tmp1 = number;
+                midiStream.write(tmp1>>8);
+                midiStream.write(number);
+                midiStream.close();
+            }
+            /*-------------------写中间部分固定形式------------------*/
+            String Str_emm = new String("00 FF 03 13 5B 47 4D 20 30 35 34 5D 20 56 6F 69 63 65 20 4F 6F 68 73 8F -1");
+            char emm[] = Str_emm.toCharArray();
+            //char *emmm = emm;
+            write(emm);
+            /*-------------------写音符------------------*/
+            char tmp1[] = new char[2];
+            char pai;
+            File midi = new File(filename);//写入的二进制文件目录
+            for (int i = 1; i <= size; i += 8)
+            {
+                tmp1[0] = note[i];
+                tmp1[1] = note[i + 1];
+
+                pai = note[i + 4];
+                //十进制字符串转int类型
+                String s1 = String.valueOf(tmp1);
+                System.out.print(s1+" ");
+                int mh2;
+                mh2 = Integer.parseInt(s1, 10);//十进制字符串转int类;
+                System.out.println(mh2);
+                //00 90 (3C) 64 (83 60) 80 (3C) 40
+                String Str_tmp = new String( "00 90 -1");
+                char tmp[] = Str_tmp.toCharArray();
+                write(tmp);
+                mh2 += 20;//转换为midi中音符的ID
+                FileOutputStream midiStream = new FileOutputStream(midi, true);
+                midiStream.write(mh2);
+                midiStream.close();
+                String Str_tmp6 = new String( "64 -1");
+                char tmp6[] = Str_tmp6.toCharArray();
+                write(tmp6);
+                String Str_tmp4 = new String( "83 60 -1");
+                String Str_tmp5 = new String( "86 48 -1");
+                char tmp4[] = Str_tmp4.toCharArray();
+                char tmp5[] = Str_tmp5.toCharArray();
+                switch ((int)pai - '0')//判断拍子个数
+                {
+                    case 1:
+                        write(tmp4);
+                        break;
+                    case 2:
+                        write(tmp5);
+                        break;
+                }
+                String Str_tmp2 = new String( "80 -1");
+                char tmp2[] = Str_tmp2.toCharArray();
+                write(tmp2);
+                FileOutputStream midiStream1 = new FileOutputStream(midi, true);
+                midiStream1.write(mh2);
+                midiStream1.close();
+                String Str_tmp3 = new String( "40 -1");
+                char tmp3[] = Str_tmp3.toCharArray();
+                write(tmp3);
+            }
+        }
+        @SuppressWarnings("static-access")
+        public void write(char mh1[]) throws IOException {
+            char s[] = new char[2];
+            int i = 0;
+            int mh2;
+            File midi = new File(filename);//写入的二进制文件目录
+            FileOutputStream midiStream = new FileOutputStream(midi, true);
+            //FILE * midi = fopen(this->filename, "ab");//写入的二进制文件目录
+
+            while (true)
+            {
+                //将十六进制字符串转为十进制int
+                s[0] = mh1[i];
+                s[1] = mh1[i + 1];
+
+                String s1 = new String();
+                s1 = String.valueOf(s);
+                //char* end;
+                // BigInteger bi = new BigInteger(s, 16);
+                // mh2 = bi.intValue();
+                mh2 = Integer.parseInt(s1,16);
+                if (mh2 == -1) break;
+                //mh2[0] <<= 3;
+                midiStream.write(mh2);
+                // if (mh1[i + 2] == '\0') break;
+                i = i + 3;
+            }
+            midiStream.close();
+            return;
+
+        }
+        public void run(String note) throws IOException {
+            write_head();
+            wirte_allnote(note,note.length());
+            write_end();
+        }
+
+}
+package yin.source.com.midimusicbooksample;
+
+import android.content.Context;
+import android.os.Bundle;
+import android.support.annotation.Nullable;
+import android.support.v4.app.DialogFragment;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.CheckBox;
+import android.widget.TextView;
+
+import yin.source.com.midimusicbook.midi.baseBean.MidiOptions;
+
+/**
+ * Created by Yin on 2018/5/26.
+ */
+public class SettingDialog extends DialogFragment implements View.OnClickListener {
+
+    public static final String MIDI_OPTIONS = "midiOptions";
+    private CheckBox checkShowBarNumber;
+    private CheckBox checkShowNoteName;
+
+    private SettingCallback settingCallback;
+
+    public static SettingDialog newInstance(Context context, MidiOptions midiOptions) {
+        SettingDialog settingDialog = new SettingDialog();
+        Bundle bundle = new Bundle();
+        bundle.putSerializable(MIDI_OPTIONS, midiOptions);
+        settingDialog.setArguments(bundle);
+        return settingDialog;
+    }
+
+    @Nullable
+    @Override
+    public View onCreateView(LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+        View view = inflater.inflate(R.layout.setting_dialog, container);
+        checkShowBarNumber = (CheckBox) view.findViewById(R.id.check_show_bar_number);
+        checkShowNoteName = (CheckBox) view.findViewById(R.id.check_show_note_name);
+        TextView positive = view.findViewById(R.id.positive);
+
+        Bundle arguments = getArguments();
+        MidiOptions midiOptions = (MidiOptions) arguments.getSerializable(MIDI_OPTIONS);
+        if (midiOptions != null) {
+            checkShowBarNumber.setChecked(midiOptions.showMeasures);
+            checkShowNoteName.setChecked(midiOptions.showNoteLetters == 1);
+        }
+
+        positive.setOnClickListener(this);
+        return view;
+    }
+
+    @Override
+    public void onClick(View view) {
+        switch (view.getId()) {
+            case R.id.positive:
+                Bundle arguments = getArguments();
+                MidiOptions midiOptions = (MidiOptions) arguments.getSerializable(MIDI_OPTIONS);
+                if (midiOptions != null) {
+                    midiOptions.showMeasures = checkShowBarNumber.isChecked();
+                    midiOptions.showNoteLetters = checkShowNoteName.isChecked() ? 1 : 0;
+                }
+                if (settingCallback != null) {
+                    settingCallback.onSettingFinish(midiOptions);
+                }
+                dismiss();
+                break;
+        }
+    }
+
+    public SettingCallback getSettingCallback() {
+        return settingCallback;
+    }
+
+    public void setSettingCallback(SettingCallback settingCallback) {
+        this.settingCallback = settingCallback;
+    }
+
+    public interface SettingCallback {
+        void onSettingFinish(MidiOptions midiOptions);
+    }
+}
+    public int getAboveStaff() {
+        /* Find the topmost note in the chord */
+        WhiteNote topnote = notedata[notedata.length - 1].whitenote;
+
+        /* The stem.End is the note position where the stem ends.
+         * Check if the stem end is higher than the top note.
+         */
+        if (stem1 != null)
+            topnote = WhiteNote.Max(topnote, stem1.getEnd());
+        if (stem2 != null)
+            topnote = WhiteNote.Max(topnote, stem2.getEnd());
+
+        int dist = topnote.Dist(WhiteNote.Top(clef)) * MusicBook.NoteHeight / 2;
+        int result = 0;
+        if (dist > 0)
+            result = dist;
+
+        /* Check if any accidental symbols extend above the staff */
+        for (AccidSymbol symbol : accidsymbols) {
+            if (symbol.getAboveStaff() > result) {
+                result = symbol.getAboveStaff();
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Get the number of pixels this symbol extends below the staff. Used
+     * to determine the minimum height needed for the staff (Staff.FindBounds).
+     */
+    public int getBelowStaff() {
+        /* Find the bottom note in the chord */
+        WhiteNote bottomnote = notedata[0].whitenote;
+
+        /* The stem.End is the note position where the stem ends.
+         * Check if the stem end is lower than the bottom note.
+         */
+        if (stem1 != null)
+            bottomnote = WhiteNote.Min(bottomnote, stem1.getEnd());
+        if (stem2 != null)
+            bottomnote = WhiteNote.Min(bottomnote, stem2.getEnd());
+
+        int dist = WhiteNote.Bottom(clef).Dist(bottomnote) *
+                MusicBook.NoteHeight / 2;
+
+        int result = 0;
+        if (dist > 0)
+            result = dist;
+
+        /* Check if any accidental symbols extend below the staff */
+        for (AccidSymbol symbol : accidsymbols) {
+            if (symbol.getBelowStaff() > result) {
+                result = symbol.getBelowStaff();
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Get the name for this note
+     */
+    private String NoteName(int notenumber, WhiteNote whitenote) {
+        if (sheetmusic.getShowNoteLetters() == MidiOptions.NoteNameLetter) {
+            return Letter(notenumber, whitenote);
+        } else if (sheetmusic.getShowNoteLetters() == MidiOptions.NoteNameFixedDoReMi) {
+            String[] fixedDoReMi = {
+                    "La", "Li", "Ti", "Do", "Di", "Re", "Ri", "Mi", "Fa", "Fi", "So", "Si"
+            };
+            int notescale = NoteScale.FromNumber(notenumber);
+            return fixedDoReMi[notescale];
+        } else if (sheetmusic.getShowNoteLetters() == MidiOptions.NoteNameMovableDoReMi) {
+            String[] fixedDoReMi = {
+                    "La", "Li", "Ti", "Do", "Di", "Re", "Ri", "Mi", "Fa", "Fi", "So", "Si"
+            };
+            int mainscale = sheetmusic.getMainKey().Notescale();
+            int diff = NoteScale.C - mainscale;
+            notenumber += diff;
+            if (notenumber < 0) {
+                notenumber += 12;
+            }
+            int notescale = NoteScale.FromNumber(notenumber);
+            return fixedDoReMi[notescale];
+        } else if (sheetmusic.getShowNoteLetters() == MidiOptions.NoteNameFixedNumber) {
+            String[] num = {
+                    "10", "11", "12", "1", "2", "3", "4", "5", "6", "7", "8", "9"
+            };
+            int notescale = NoteScale.FromNumber(notenumber);
+            return num[notescale];
+        } else if (sheetmusic.getShowNoteLetters() == MidiOptions.NoteNameMovableNumber) {
+            String[] num = {
+                    "10", "11", "12", "1", "2", "3", "4", "5", "6", "7", "8", "9"
+            };
+            int mainscale = sheetmusic.getMainKey().Notescale();
+            int diff = NoteScale.C - mainscale;
+            notenumber += diff;
+            if (notenumber < 0) {
+                notenumber += 12;
+            }
+            int notescale = NoteScale.FromNumber(notenumber);
+            return num[notescale];
+        } else {
+            return "";
+        }
+    }
+
+    /**
+     * Get the letter (A, A#, Bb) representing this note
+     */
+    private String Letter(int notenumber, WhiteNote whitenote) {
+        int notescale = NoteScale.FromNumber(notenumber);
+        switch (notescale) {
+            case NoteScale.A:
+                return "A";
+            case NoteScale.B:
+                return "B";
+            case NoteScale.C:
+                return "C";
+            case NoteScale.D:
+                return "D";
+            case NoteScale.E:
+                return "E";
+            case NoteScale.F:
+                return "F";
+            case NoteScale.G:
+                return "G";
+            case NoteScale.Asharp:
+                if (whitenote.getLetter() == WhiteNote.A)
+                    return "A#";
+                else
+                    return "Bb";
+            case NoteScale.Csharp:
+                if (whitenote.getLetter() == WhiteNote.C)
+                    return "C#";
+                else
+                    return "Db";
+            case NoteScale.Dsharp:
+                if (whitenote.getLetter() == WhiteNote.D)
+                    return "D#";
+                else
+                    return "Eb";
+            case NoteScale.Fsharp:
+                if (whitenote.getLetter() == WhiteNote.F)
+                    return "F#";
+                else
+                    return "Gb";
+            case NoteScale.Gsharp:
+                if (whitenote.getLetter() == WhiteNote.G)
+                    return "G#";
+                else
+                    return "Ab";
+            default:
+                return "";
+        }
+    }
+
+    /**
+     * Draw the Chord Symbol:
+     * - Draw the accidental symbols.
+     * - Draw the black circle notes.
+     * - Draw the stems.
+     *
+     * @param ytop The ylocation (in pixels) where the top of the staff starts.
+     */
+    public void Draw(Canvas canvas, Paint paint, int ytop) {
+        paint.setStyle(Paint.Style.STROKE);
+
+        /* Align the chord to the right */
+        canvas.translate(getWidth() - getMinWidth(), 0);
+
+        /* Draw the accidentals. */
+        WhiteNote topstaff = WhiteNote.Top(clef);
+        int xpos = DrawAccid(canvas, paint, ytop);
+
+        /* Draw the notes */
+        canvas.translate(xpos, 0);
+        DrawNotes(canvas, paint, ytop, topstaff);
+
+        if (sheetmusic != null && sheetmusic.getShowNoteLetters() != 0) {
+            DrawNoteLetters(canvas, paint, ytop, topstaff);
+        }
+
+        /* Draw the stems */
+        if (stem1 != null)
+            stem1.Draw(canvas, paint, ytop, topstaff);
+        if (stem2 != null)
+            stem2.Draw(canvas, paint, ytop, topstaff);
+
+        canvas.translate(-xpos, 0);
+        canvas.translate(-(getWidth() - getMinWidth()), 0);
+    }
+
+    /* Draw the accidental symbols.  If two symbols overlap (if they
+     * are less than 6 notes apart), we cannot draw the symbol directly
+     * above the previous one.  Instead, we must shift it to the right.
+     * @param ytop The ylocation (in pixels) where the top of the staff starts.
+     * @return The x pixel width used by all the accidentals.
+     */
+    public int DrawAccid(Canvas canvas, Paint paint, int ytop) {
+        int xpos = 0;
+
+        AccidSymbol prev = null;
+        for (AccidSymbol symbol : accidsymbols) {
+            if (prev != null && symbol.getNote().Dist(prev.getNote()) < 6) {
+                xpos += symbol.getWidth();
+            }
+            canvas.translate(xpos, 0);
+            symbol.Draw(canvas, paint, ytop);
+            canvas.translate(-xpos, 0);
+            prev = symbol;
+        }
+        if (prev != null) {
+            xpos += prev.getWidth();
+        }
+        return xpos;
+    }
+
+    /**
+     * Draw the black circle notes.
+     *
+     * @param ytop     The ylocation (in pixels) where the top of the staff starts.
+     * @param topstaff The white note of the top of the staff.
+     */
+    public void DrawNotes(Canvas canvas, Paint paint, int ytop, WhiteNote topstaff) {
+        paint.setStrokeWidth(1);
+        for (NoteData note : notedata) {
+            /* Get the x,y position to draw the note */
+            int ynote = ytop + topstaff.Dist(note.whitenote) *
+                    MusicBook.NoteHeight / 2;
+
+            int xnote = MusicBook.LineSpace / 4;
+            if (!note.leftside)
+                xnote += MusicBook.NoteWidth;
+
+            /* Draw rotated ellipse.  You must first translate (0,0)
+             * to the center of the ellipse.
+             */
+            canvas.translate(xnote + MusicBook.NoteWidth / 2 + 1,
+                    ynote - MusicBook.LineWidth + MusicBook.NoteHeight / 2);
+            canvas.rotate(-45);
+
+            if (sheetmusic != null) {
+                paint.setColor(sheetmusic.NoteColor(note.number));
+            } else {
+                paint.setColor(Color.BLACK);
+            }
+
+            if (note.duration == NoteDuration.Whole ||
+                    note.duration == NoteDuration.Half ||
+                    note.duration == NoteDuration.DottedHalf) {
+
+                RectF rect = new RectF(-MusicBook.NoteWidth / 2, -MusicBook.NoteHeight / 2,
+                        -MusicBook.NoteWidth / 2 + MusicBook.NoteWidth,
+                        -MusicBook.NoteHeight / 2 + MusicBook.NoteHeight - 1);
+                canvas.drawOval(rect, paint);
+                rect = new RectF(-MusicBook.NoteWidth / 2, -MusicBook.NoteHeight / 2 + 1,
+                        -MusicBook.NoteWidth / 2 + MusicBook.NoteWidth,
+                        -MusicBook.NoteHeight / 2 + 1 + MusicBook.NoteHeight - 2);
+                canvas.drawOval(rect, paint);
+                rect = new RectF(-MusicBook.NoteWidth / 2, -MusicBook.NoteHeight / 2 + 1,
+                        -MusicBook.NoteWidth / 2 + MusicBook.NoteWidth,
+                        -MusicBook.NoteHeight / 2 + 1 + MusicBook.NoteHeight - 3);
+                canvas.drawOval(rect, paint);
+
+            } else {
+                paint.setStyle(Paint.Style.FILL);
+                RectF rect = new RectF(-MusicBook.NoteWidth / 2, -MusicBook.NoteHeight / 2,
+                        -MusicBook.NoteWidth / 2 + MusicBook.NoteWidth,
+                        -MusicBook.NoteHeight / 2 + MusicBook.NoteHeight - 1);
+                canvas.drawOval(rect, paint);
+                paint.setStyle(Paint.Style.STROKE);
+            }
+
+            paint.setColor(Color.BLACK);
+
+            canvas.rotate(45);
+            canvas.translate(-(xnote + MusicBook.NoteWidth / 2 + 1),
+                    -(ynote - MusicBook.LineWidth + MusicBook.NoteHeight / 2));
+
+            /* Draw a dot if this is a dotted duration. */
+            if (note.duration == NoteDuration.DottedHalf ||
+                    note.duration == NoteDuration.DottedQuarter ||
+                    note.duration == NoteDuration.DottedEighth) {
+
+                RectF rect = new RectF(xnote + MusicBook.NoteWidth + MusicBook.LineSpace / 3,
+                        ynote + MusicBook.LineSpace / 3,
+                        xnote + MusicBook.NoteWidth + MusicBook.LineSpace / 3 + 4,
+                        ynote + MusicBook.LineSpace / 3 + 4);
+                paint.setStyle(Paint.Style.FILL);
+                canvas.drawOval(rect, paint);
+                paint.setStyle(Paint.Style.STROKE);
+            }
+
+            /* Draw horizontal lines if note is above/below the staff */
+            WhiteNote top = topstaff.Add(1);
+            int dist = note.whitenote.Dist(top);
+            int y = ytop - MusicBook.LineWidth;
+
+            if (dist >= 2) {
+                for (int i = 2; i <= dist; i += 2) {
+                    y -= MusicBook.NoteHeight;
+                    canvas.drawLine(xnote - MusicBook.LineSpace / 4, y,
+                            xnote + MusicBook.NoteWidth + MusicBook.LineSpace / 4,
+                            y, paint);
+                }
+            }
+
+            WhiteNote bottom = top.Add(-8);
+            y = ytop + (MusicBook.LineSpace + MusicBook.LineWidth) * 4 - 1;
+            dist = bottom.Dist(note.whitenote);
+            if (dist >= 2) {
+                for (int i = 2; i <= dist; i += 2) {
+                    y += MusicBook.NoteHeight;
+                    canvas.drawLine(xnote - MusicBook.LineSpace / 4, y,
+                            xnote + MusicBook.NoteWidth + MusicBook.LineSpace / 4,
+                            y, paint);
+                }
+            }
+            /* End drawing horizontal lines */
+
+        }
+    }
+
+    /**
+     * Draw the note letters (A, A#, Bb, etc) next to the note circles.
+     *
+     * @param ytop     The y location (in pixels) where the top of the staff starts.
+     * @param topstaff The white note of the top of the staff.
+     */
+    public void DrawNoteLetters(Canvas canvas, Paint paint, int ytop, WhiteNote topstaff) {
+        boolean overlap = NotesOverlap(notedata, 0, notedata.length);
+        paint.setStrokeWidth(1);
+
+        for (NoteData note : notedata) {
+            if (!note.leftside) {
+                // There's not enough pixel room to show the letter
+                continue;
+            }
+
+            // Get the x,y position to draw the note
+            int ynote = ytop + topstaff.Dist(note.whitenote) *
+                    MusicBook.NoteHeight / 2;
+
+            // Draw the letter to the right side of the note
+            int xnote = MusicBook.NoteWidth + MusicBook.NoteWidth / 2;
+
+            if (note.duration == NoteDuration.DottedHalf ||
+                    note.duration == NoteDuration.DottedQuarter ||
+                    note.duration == NoteDuration.DottedEighth || overlap) {
+
+                xnote += MusicBook.NoteWidth / 2;
+            }
+            canvas.drawText(NoteName(note.number, note.whitenote),
+                    xnote,
+                    ynote + MusicBook.NoteHeight / 2, paint);
+        }
+    }
+
+    @Override
+    public String toString() {
+        String result = String.format("ChordSymbol clef=%1$s start=%2$s end=%3$s width=%4$s hastwostems=%5$s ",
+                clef, getStartTime(), getEndTime(), getWidth(), hastwostems);
+        for (AccidSymbol symbol : accidsymbols) {
+            result += symbol.toString() + " ";
+        }
+        for (NoteData note : notedata) {
+            result += String.format("Note whitenote=%1$s duration=%2$s leftside=%3$s ",
+                    note.whitenote, note.duration, note.leftside);
+        }
+        if (stem1 != null) {
+            result += stem1.toString() + " ";
+        }
+        if (stem2 != null) {
+            result += stem2.toString() + " ";
+        }
+        return result;
+    }
+
+}
+package yin.source.com.midimusicbook.utils;
+
+import android.app.Activity;
+import android.content.ContentResolver;
+import android.content.Context;
+import android.content.res.AssetManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
+
+
+import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+
+import yin.source.com.midimusicbook.exception.MidiFileException;
+
+
+
+public class IOUtil {
+
+    /**
+     * 将Bitmap转换成文件
+     * 保存文件
+     *
+     * @param bm
+     * @param fileName
+     * @throws IOException
+     */
+    private static File saveBitmapToFile(Bitmap bm, String path, String fileName) throws IOException {
+        File dirFile = new File(path);
+        if (!dirFile.exists()) {
+            dirFile.mkdirs();
+        }
+        File myCaptureFile = new File(path, fileName);
+        BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(myCaptureFile));
+        bm.compress(Bitmap.CompressFormat.JPEG, 80, bos);
+        bos.flush();
+        bos.close();
+        return myCaptureFile;
+    }
+
+    public static Bitmap getBitmapFromFile(File file) {
+        if (!file.exists()) {
+            return null;
+        } else {
+            FileInputStream fis = null;
+            try {
+                fis = new FileInputStream(file);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+            return BitmapFactory.decodeStream(fis);
+        }
+    }
+
+    /**
+     * Return the file contents as a byte array. 将文件内容以一个byte数组的方式返回
+     * If any IO error_avator occurs, return null. 如果IO异常出现，返回null
+     */
+    public static byte[] getByteDataByUri(Uri uri, Activity activity) {
+        try {
+            InputStream inputStream = handleFileInputStreamFromUri(uri, activity);
+            return getBytesData(inputStream);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Return the file contents as a byte array. 将文件内容以一个byte数组的方式返回
+     * If any IO error_avator occurs, return null. 如果IO异常出现，返回null
+     */
+    public static byte[] getByteDataByFile(File file) {
+        try {
+            InputStream inputStream = new FileInputStream(file);
+            return getBytesData(inputStream);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private static byte[] getBytesData(InputStream inputStream) throws IOException {
+        if (inputStream == null) {
+            throw new MidiFileException("inputStream is null");
+        }
+        byte[] data;
+        int totalLen, len, offset;
+        totalLen = inputStream.available();
+        offset = 0;
+        data = new byte[totalLen];
+        while (offset < totalLen) {
+            len = inputStream.read(data, offset, totalLen - offset);
+            if (len <= 0) {
+                throw new MidiFileException("Error reading midi file");
+            }
+            offset += len;
+        }
+        return data;
+    }
+
+    private static InputStream handleFileInputStreamFromUri(Uri uri, Activity activity) throws IOException {
+        InputStream file;
+
+        String uriString = uri.toString();
+
+        if (uriString.startsWith("file:///android_asset/")) {
+            AssetManager asset = activity.getResources().getAssets();
+            String filepath = uriString.replace("file:///android_asset/", "");
+            file = asset.open(filepath);
+        } else if (uriString.startsWith("content://")) {
+            ContentResolver resolver = activity.getContentResolver();
+            file = resolver.openInputStream(uri);
+        } else {
+            file = new FileInputStream(uri.getPath());
+        }
+        return file;
+    }
+
+
+    /**
+     * Assets拷贝文件以及文件夹到指定目录
+     *
+     * @param context
+     * @param assetsFile
+     * @param savePath
+     */
+    public static void copyFilesFromAssets(Context context, String assetsFile, String savePath) throws IOException {
+        String fileNames[] = context.getAssets().list(assetsFile);// 获取assets目录下的所有文件及目录名
+        if (fileNames.length > 0) {// 如果是目录
+            File file = new File(savePath);
+            file.mkdirs();
+            // 递归
+            for (String fileName : fileNames) {
+                copyFilesFromAssets(context, assetsFile + "/" + fileName,
+                        savePath + "/" + fileName);
+            }
+        } else {// 如果是文件
+            InputStream is = context.getAssets().open(assetsFile);
+            FileOutputStream fos = new FileOutputStream(new File(savePath));
+            byte[] buffer = new byte[1024];
+            int byteCount = 0;
+            while ((byteCount = is.read(buffer)) != -1) {// 循环从输入流读取
+                // buffer字节
+                fos.write(buffer, 0, byteCount);// 将读取的输入流写入到输出流
+            }
+            fos.flush();// 刷新缓冲区
+            is.close();
+            fos.close();
+        }
+    }
+
+
+    /**
+     * 微信分享用的 bitmap 转字节
+     *
+     * @param bmp
+     * @param needRecycle
+     * @return
+     */
+    public static byte[] bmpToByteArray(final Bitmap bmp, final boolean needRecycle) {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        bmp.compress(Bitmap.CompressFormat.PNG, 100, output);
+        if (needRecycle) {
+            bmp.recycle();
+        }
+
+        byte[] result = output.toByteArray();
+        try {
+            output.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return result;
+    }
+
+}
+
+
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="yin.source.com.midimusicbooksample">
+
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity android:name=".FileActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".MainActivity">
+        </activity>
+        <activity android:name=".SettingsActivity" />
+    </application>
+
+</manifest>
+
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <TextView
+        android:id="@+id/TV1"
+        android:layout_width="270dp"
+        android:layout_height="73dp"
+        android:gravity="center"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:background="#E0E2E2"
+        app:layout_constraintHorizontal_bias="0.500"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.382" />
+
+    <TextView
+        android:id="@+id/TV2"
+        android:layout_width="270dp"
+        android:layout_height="73dp"
+        android:layout_marginTop="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintHorizontal_bias="0.500"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/TV1"
+        app:layout_constraintVertical_bias="0.062"/>
+
+    <Button
+        android:id="@+id/B1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="8dp"
+        android:text="生成五线谱"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.723"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/TV2"
+        app:layout_constraintVertical_bias="0.638" />
+
+    <Button
+        android:id="@+id/open_file"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="8dp"
+        android:text="打开文件"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.25"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/TV2"
+        app:layout_constraintVertical_bias="0.638" />
+
+    <TextView
+        android:id="@+id/TV_out"
+        android:gravity="center"
+        android:layout_width="223dp"
+        android:layout_height="34dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginBottom="8dp"
+
+        app:layout_constraintBottom_toTopOf="@+id/B1"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/TV2"
+        app:layout_constraintVertical_bias="0.385" />
+
+</android.support.constraint.ConstraintLayout>
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#003E74"
+        android:padding="10dp">
+
+        <Button
+            android:id="@+id/btn_rewind"
+            style="@style/MidiPlayerButton"
+            android:background="@drawable/rewind" />
+
+        <Button
+            android:id="@+id/btn_restart"
+            style="@style/MidiPlayerButton"
+            android:background="@drawable/svg_replay" />
+
+        <Button
+            android:id="@+id/btn_stop"
+            style="@style/MidiPlayerButton"
+            android:background="@drawable/stop" />
+
+        <Button
+            android:id="@+id/btn_pause"
+            style="@style/MidiPlayerButton"
+            android:background="@drawable/svg_pause" />
+
+        <Button
+            android:id="@+id/btn_play"
+            style="@style/MidiPlayerButton"
+            android:background="@drawable/play" />
+
+        <Button
+            android:id="@+id/btn_fast_forward"
+            style="@style/MidiPlayerButton"
+            android:background="@drawable/fastforward" />
+
+        <TextView
+            android:id="@+id/tv_speed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+
+        <!--<SeekBar-->
+        <!--android:id="@+id/seek_speed"-->
+        <!--android:layout_width="wrap_content"-->
+        <!--android:layout_height="wrap_content"-->
+        <!--android:max="150"-->
+        <!--android:progress="100" />-->
+
+        <Button
+            android:id="@+id/btn_setting"
+            style="@style/MidiPlayerButton"
+            android:background="@drawable/settings" />
+
+        <Button
+            android:id="@+id/btn_print"
+            style="@style/MidiPlayerButton"
+            android:background="@drawable/svg_print" />
+    </LinearLayout>
+
+
+    <yin.source.com.midimusicbook.midi.musicBook.Piano
+        android:id="@+id/piano"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <yin.source.com.midimusicbook.midi.musicBook.MusicBook
+        android:id="@+id/sheet"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_margin="5dp" />
+
+</LinearLayout>
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/save_images_descr"
+        android:layout_height="wrap_content"
+        android:layout_width="wrap_content"
+        android:layout_marginLeft="20dip"
+        android:layout_marginRight="20dip"
+        android:text="Save the sheet music as images, in the directory /Pictures/MidiSheetMusic, with the following filename"
+        android:gravity="left"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
+    <EditText
+        android:id="@+id/save_images_filename"
+        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_marginLeft="20dip"
+        android:layout_marginRight="20dip"
+        android:scrollHorizontally="true"
+        android:gravity="fill_horizontal"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
+</LinearLayout>
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="10dp"
+    android:orientation="vertical">
+
+    <CheckBox
+        android:id="@+id/check_show_bar_number"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:checked="true"
+        android:text="显示小节数" />
+
+    <CheckBox
+        android:id="@+id/check_show_note_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="显示音名" />
+
+    <TextView
+        android:id="@+id/positive"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="right"
+        android:layout_marginTop="10dp"
+        android:text="确定" />
+</LinearLayout>
+
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:id="@+id/song_settings"
+          android:icon="@android:drawable/ic_menu_preferences"
+          android:title="setting" />
+
+    <item android:id="@+id/save_images"
+          android:icon="@android:drawable/ic_menu_save"
+          android:title="saveAsImage" />
+
+    <item android:id="@+id/help"
+          android:icon="@android:drawable/ic_menu_help"
+          android:title="help" />
+</menu>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="transpose_entries">
+        <item>Up 12 notes</item>
+        <item>Up 11 notes</item>
+        <item>Up 10 notes</item>
+        <item>Up 9 notes</item>
+        <item>Up 8 notes</item>
+        <item>Up 7 notes</item>
+        <item>Up 6 notes</item>
+        <item>Up 5 notes</item>
+        <item>Up 4 notes</item>
+        <item>Up 3 notes</item>
+        <item>Up 2 notes</item>
+        <item>Up 1 note</item>
+        <item>None</item>
+        <item>Down 1 note</item>
+        <item>Down 2 notes</item>
+        <item>Down 3 notes</item>
+        <item>Down 4 notes</item>
+        <item>Down 5 notes</item>
+        <item>Down 6 notes</item>
+        <item>Down 7 notes</item>
+        <item>Down 8 notes</item>
+        <item>Down 9 notes</item>
+        <item>Down 10 notes</item>
+        <item>Down 11 notes</item>
+        <item>Down 12 notes</item>
+    </string-array>
+
+    <string-array name="transpose_values">
+        <item>12</item>
+        <item>11</item>
+        <item>10</item>
+        <item>9</item>
+        <item>8</item>
+        <item>7</item>
+        <item>6</item>
+        <item>5</item>
+        <item>4</item>
+        <item>3</item>
+        <item>2</item>
+        <item>1</item>
+        <item>0</item>
+        <item>-1</item>
+        <item>-2</item>
+        <item>-3</item>
+        <item>-4</item>
+        <item>-5</item>
+        <item>-6</item>
+        <item>-7</item>
+        <item>-8</item>
+        <item>-9</item>
+        <item>-10</item>
+        <item>-11</item>
+        <item>-12</item>
+    </string-array>
+
+    <string-array name="key_signature_entries">
+        <item>Default</item>
+        <item>A major         F# minor </item>
+        <item>B-flat major   G minor </item>
+        <item>B major         A-flat minor</item>
+        <item>C major         A minor</item>
+        <item>D-flat major   B-flat minor</item>
+        <item>D major         B minor</item>
+        <item>E-flat major   C minor</item>
+        <item>E major         C# minor</item>
+        <item>F major         D minor</item>
+        <item>G-flat major   E-flat minor</item>
+        <item>G major         E minor</item>
+        <item>A-flat major    F minor</item>
+    </string-array>
+
+    <string-array name="key_signature_values">
+        <item>-1</item>
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+        <item>6</item>
+        <item>7</item>
+        <item>8</item>
+        <item>9</item>
+        <item>10</item>
+        <item>11</item>
+    </string-array>
+
+    <string-array name="combine_interval_entries">
+        <item>20 milliseconds</item>
+        <item>40 milliseconds</item>
+        <item>60 milliseconds</item>
+        <item>80 milliseconds</item>
+        <item>100 milliseconds</item>
+    </string-array>
+
+    <string-array name="combine_interval_values">
+        <item>20</item>
+        <item>40</item>
+        <item>60</item>
+        <item>80</item>
+        <item>100</item>
+    </string-array>
+
+    <string-array name="show_note_letter_entries">
+        <item>None</item>
+        <item>Letters (A, A#)</item>
+        <item>Fixed Do-Re-Mi</item>
+        <item>Movable Do-Re-Mi</item>
+        <item>Fixed Numbers</item>
+        <item>Movable Numbers</item>
+    </string-array>
+
+    <string-array name="show_note_letter_values">
+        <item>0</item>
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+        <item>5</item>
+    </string-array>
+
+</resources>
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#3F51B5</color>
+    <color name="colorPrimaryDark">#303F9F</color>
+    <color name="colorAccent">#FF4081</color>
+</resources>
+<resources>
+    <string name="app_name">MidiMusicBookSample</string>
+    <string name="choose_song">Choose Song</string>
+    <string name="song_settings_str">Song Settings</string>
+    <string name="save_images_str">Save As Images</string>
+    <string name="save_images_descr_str">Save the sheet music as images, in the directory /Pictures/MidiSheetMusic, with the following filename</string>
+    <string name="help_str">Help</string>
+    <string name="sheet_prefs_title">Sheet Music Preferences</string>
+    <string name="restore_defaults">Restore Default Settings</string>
+    <string name="select_tracks_to_display">Select Tracks to Display</string>
+    <string name="select_tracks_to_mute">Select Tracks to Mute</string>
+    <string name="select_instruments_per_track">Select Instruments For Each Track</string>
+    <string name="set_all_to_piano">Set All Instruments to Piano</string>
+    <string name="scroll_vertically">Scroll Vertically</string>
+    <string name="show_piano">Show the Piano</string>
+    <string name="show_lyrics">Show Lyrics</string>
+    <string name="show_note_letters">Show Note Letters</string>
+    <string name="combine_to_two_staffs">Combine To Two Staffs</string>
+    <string name="combine_to_two_staffs_summary">Combine all the tracks into two staffs (left hand and right hand staffs). </string>
+    <string name="split_to_two_staffs">Split Track Into Two Staffs</string>
+    <string name="split_to_two_staffs_summary">Split the single track into two staffs (left hand and right hand staffs).</string>
+    <string name="transpose">Transpose Notes</string>
+    <string name="key_signature">Key Signature</string>
+    <string name="time_signature">Time Signature</string>
+    <string name="combine_interval">Combine Interval</string>
+    <string name="combine_interval_summary">Notes within the given interval (in milliseconds) are combined into a single chord</string>
+    <string name="right_hand_color">Right Hand Color</string>
+    <string name="left_hand_color">Left Hand Color</string>
+    <string name="show_measures">Show Measure Numbers</string>
+    <string name="play_measures_in_loop_title">Settings for Play Measures in a Loop</string>
+    <string name="play_measures_in_loop">Play Measures in a Loop</string>
+    <string name="play_measures_in_loop_start">Start Measure</string>
+    <string name="play_measures_in_loop_end">End Measure</string>
+    <string name="scan_button_title">Scan SD Card for MIDI files</string>
+    <string name="scan_files_str">Scan for MIDI Files</string>
+    <string name="browse_files_str">Browse for MIDI Files</string>
+
+    <string name="bt_not_enabled_leaving">Bluetooth was not enabled. Leaving Bluetooth Chat.</string>
+    <!--  DeviceListActivity -->
+    <string name="scanning">scanning for devices...</string>
+    <string name="select_device">select a device to connect</string>
+    <string name="none_paired">No devices have been paired</string>
+    <string name="none_found">No devices found</string>
+    <string name="title_paired_devices">Paired Devices</string>
+    <string name="title_other_devices">Other Available Devices</string>
+    <string name="button_scan">Scan for devices</string>
+</resources>
+
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+    </style>
+    <style name="Notitle" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Customize your theme here. -->
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+    </style>
+
+</resources>
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:background="#000000"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" >
+
+    <ImageView android:id="@+id/choose_song_icon"
+        android:background="#000000"
+        android:padding="8dip"
+        android:layout_width="48dip" 
+        android:layout_height="48dip" />
+
+    <TextView android:id="@+id/choose_song_name"
+        android:layout_gravity="center_vertical"
+        android:layout_width="0dip"
+        android:layout_weight="1.0"
+        android:layout_height="wrap_content"
+        android:background="#000000"
+        android:textSize="14dip"
+        android:textColor="#f0f0f0" />
+
+</LinearLayout>
+
+package upload;
+
+import java.io.File;  
+import java.io.FileOutputStream;  
+import java.io.IOException;  
+import java.io.InputStream;  
+import java.io.PrintWriter;  
+import java.util.List;  
+  
+import javax.servlet.ServletException;  
+import javax.servlet.http.HttpServlet;  
+import javax.servlet.http.HttpServletRequest;                                                                                                                                                                                                                                                                                    
+import javax.servlet.http.HttpServletResponse;  
+  
+import org.apache.commons.fileupload.FileItem;  
+import org.apache.commons.fileupload.FileItemFactory;  
+import org.apache.commons.fileupload.disk.DiskFileItemFactory;  
+import org.apache.commons.fileupload.servlet.ServletFileUpload;
+
+import com.mathworks.toolbox.javabuilder.MWException;
+import MUSIC.music;  
+  
+public class UploadServlet extends HttpServlet  
+{  
+
+	private static final long serialVersionUID = 1L;
+	protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException  
+	{  
+		try  
+		{  
+			System.out.println("START");
+			request.setCharacterEncoding("UTF-8"); // 设置处理请求参数的编码格式  
+			response.setContentType("text/html;charset=UTF-8"); // 设置Content-Type字段值  
+			PrintWriter out = response.getWriter();  
+		  
+			// 下面的代码开始使用Commons-UploadFile组件处理上传的文件数据  
+			FileItemFactory factory = new DiskFileItemFactory(); // 建立FileItemFactory对象  
+			ServletFileUpload upload = new ServletFileUpload(factory);
+			
+			
+			// 分析请求，并得到上传文件的FileItem对象  
+			List<FileItem> items = upload.parseRequest(request);  
+			
+			// 从web.xml文件中的参数中得到上传文件的路径  
+			String uploadPath = "C:\\dachuang_upload\\";  
+			File file = new File(uploadPath);  
+			if (!file.exists())  
+			{  
+				file.mkdir();  
+			}  
+			String filename = ""; // 上传文件保存到服务器的文件名  
+			InputStream is = null; // 当前上传文件的InputStream对象 
+			
+			// 循环处理上传文件  
+			for (FileItem item : items)  
+			{  
+				// 处理普通的表单域  
+				if (item.isFormField())  
+				{  
+						if (item.getFieldName().equals("filename"))  
+						{  
+						// 如果新文件不为空，将其保存在filename中  
+						if (!item.getString().equals(""))  
+						filename = item.getString("UTF-8");  
+						}  
+				}  
+				// 处理上传文件  
+				else if (item.getName() != null && !item.getName().equals(""))  
+				{  
+					// 从客户端发送过来的上传文件路径中截取文件名  
+					filename = item.getName().substring(  
+					item.getName().lastIndexOf("\\") + 1);  
+					is = item.getInputStream(); // 得到上传文件的InputStream对象  
+				}  
+			}  
+		// 将路径和上传文件名组合成完整的服务端路径  
+		filename = uploadPath + filename;  
+		// 如果服务器已经存在和上传文件同名的文件，则输出提示信息  
+		if (new File(filename).exists())  
+		{  
+			new File(filename).delete();  
+		}  
+		// 开始上传文件  
+		System.out.println("RECOGNITION");
+		if (!filename.equals(""))  
+		{  
+			// 用FileOutputStream打开服务端的上传文件  
+			FileOutputStream fos = new FileOutputStream(filename);  
+			byte[] buffer = new byte[8192]; // 每次读8K字节  
+			int count = 0;  
+			// 开始读取上传文件的字节，并将其输出到服务端的上传文件输出流中  
+			while ((count = is.read(buffer)) > 0)  
+			{  
+				fos.write(buffer, 0, count); // 向服务端文件写入字节流  		  
+			}  
+			fos.close(); // 关闭FileOutputStream对象  
+			is.close(); // InputStream对象  
+			System.out.println("music");
+			music m;
+			try
+			{
+				m = new music();
+				System.out.println("TRY1");
+				Object[]result = m.music1(1, filename);
+				Object res1= result[0];
+				System.out.println(filename);
+				System.out.println(res1.toString());
+				System.out.println("TRY2");
+				//req.setAttribute("list", res1.toString());
+				out.println("文件上传成功啦！");  
+				out.println(res1.toString());
+			} catch (MWException e)
+			{
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}  
+		}  
+		catch (Exception e)  
+		{  
+		  
+		}  
+	}
+
+}
+%暂时注解
+%function mus = music(filedir,filename)
+%暂时注解
+
+clc; close all;
+%filedir='C:\Users\asus\Desktop\常用文件\大创\钢琴音色WAV\'; % 设置路径
+%filename='52-C    -小字2组.wav'; % 设置文件名
+
+%filedir='C:\Users\asus\Desktop\'; % 设置路径 C:\Users\asus\Desktop\常用文件\大创\音频测试文件\zyc\58\
+%filename='XXX.m4a'; % 设置文件名 小星星.m4a
+
+%filedir='C:\Users\asus\Desktop\常用文件\大创\'; % 设置路径
+%filename='快音阶.aac'; % 设置文件名
+
+filedir='/Users/ytt/Documents/大创/大创中后期/音频素材/'; % 设置路径
+filename='1.3.5 135.m4a'; % 设置文件名
+%filename='生日快乐（1）：135 135 146 135 351+ 257.m4a'; % 设置文件名
+
+
+fle=[filedir filename]; % 构成完整的路径和文件名
+[x,Fs]=audioread(fle); % 读入数据文件
+wlen=400; inc=80; % 给出帧长和帧移
+win = 0.54 - 0.46*cos(2*pi*(0:wlen-1)'/(wlen-1));
+% win=haning(wlen); % 给出海宁窗</command>
+N1=length(x); % 信号长度</command>
+X=enframe(x,win,inc)'; % 分帧</command>
+fn=size(X,2); % 求出帧数
+
+%fn=size(X,2)/2; % 求出帧数
+time=(0:N1-1)/Fs; % 计算出信号的时间刻度</command>
+
+for i=1 : fn
+u=X(:,i); % 取出一帧</command>
+u2=u.*u; % 求出能量</command>
+En(i)=sum(u2); % 对一帧累加求和</command>
+end
+
+figure;
+subplot 211;
+plot(time,x,'k'); % 画出时间波形</command>
+title('语音波形');
+ylabel('幅值'); xlabel(['时间/s' 10 '(a)']);
+
+frameTime=frame2time(fn,wlen,inc,Fs); % 求出每帧对应的时间</command>
+subplot 212;
+plot(frameTime,En,'k') % 画出短时能量图
+title('短时能量');
+ylabel('幅值'); xlabel(['时间/s' 10 '(b)']);
+
+%A=imread('lena.png');
+%A=im2double(A);
+%B=imnoise(A,'salt & pepper',0.25) ;
+%E =adpmedian(frameTime,En);
+%subplot(2,3,5),imshow(E);title('自适应阈值中值滤波图像')
+
+%求每个音的起始点
+sign = 1;
+num=0;
+len = 4;    %相邻两点至之间能量变化的差值
+s = 0;
+for i=1:fn
+    if(i+2>fn)
+    break;
+    end
+    
+    if(abs(En(i+1)-En(i))>len)
+        if(num == 0)
+            if(En(i+1)-En(i)>0)
+             num=num+1;
+            s(num)=frameTime(i+1);
+            Enjump(num) = En(i+1)-En(i);
+            sign = 0;
+            else
+                continue;
+            end
+        elseif(En(i+1)-En(i)<0 && sign == 0)
+            if(i-find(frameTime(1:i+1)==s(num))>150)
+                num=num+1;
+                s(num)=frameTime(i+1);
+                Enjump(num) = En(i+1)-En(i);
+                sign = 1;
+            end
+        elseif(En(i+1)-En(i)>0 && sign == 1)
+            num=num+1;
+            s(num)=frameTime(i+1);   
+            Enjump(num) = En(i+1)-En(i);
+            sign = 0;
+        end
+    else
+        if(sign==0 && En(i+1)<0.01)
+            num=num+1;
+            s(num)=frameTime(i+1);
+            Enjump(num) = -0.05;
+            sign = 1;
+        end
+    end
+
+end
+%分配起止点  s1起点  s2终点
+s1_len = 0;
+s2_len = 0;
+for i = 1:num
+    if(Enjump(i) >0)
+        s1_len = s1_len+1;
+        s1(s1_len) = s(i);       
+    else
+        s2_len = s2_len+1;
+         s2(s2_len) = s(i);
+    end
+end
+
+%修正最后一个结束点
+if(s2_len<s1_len)
+    s2_len = s2_len+1;
+    s2(s2_len) = time(N1);
+else
+    length_blank(s2_len) = time(N1)-s2(s2_len);
+    s2(s2_len) = time(N1);
+end
+
+
+%求音长 length1  和  空拍长 length_blank
+for i = 1:s2_len-1
+    length1(i) = s1(i+1)-s1(i);
+end
+length1(s2_len) = s2(s2_len)-s1(s2_len);
+
+avg_length1 = mean(length1); 
+min_length1 = min(length1);
+len1 = min_length1+0.1;   %1拍长度
+
+for i = 2:s2_len
+    length_blank(i-1) = s1(i)-s2(i-1);
+end
+
+%修正 length 
+for i = 1:length(length_blank)
+    if(length_blank(i)>len1)
+        length1(i)=length1(i) - length_blank(i);
+    end
+end
+
+%音符与空拍
+
+%识别频率
+mus = '';
+m='';
+figure;
+for i = 1:s2_len
+    N = find(time == (s2(i))) - find(time == s1(i)) ;
+    n1(i) = N;
+    x1=x(find(time == s1(i)):find(time == s1(i)) +N ); 
+    x2=fft(x1,N);
+    mag=abs(x2);
+    
+    
+    
+    subplot(fix(num/4)+2,4,i);
+    f = (0:N-1).*Fs/N;
+    hz(i) = f(find ( mag(1:2500)  == max(mag(1:2500))));
+    
+    plot(f,mag);
+    xlim([0,2500])
+    xlabel('Frenquency/Hz');
+    ylabel('Amp');grid on;
+   
+    
+    %根据频率识别音频
+    if hz(i)>254.284 && hz(i)<=269.4045
+        m = ' 40C';
+    elseif hz(i)>269.4045 && hz(i)<=285.424
+        m = ' 41#C';
+    elseif hz(i)>285.424 && hz(i)<=302.396
+        m = ' 42D';
+    elseif hz(i)>302.396 && hz(i)<=320.3775
+        m = ' 43#D';      
+    elseif hz(i)>320.3775 && hz(i)<=339.428
+        m = ' 44E';           
+    elseif hz(i)>339.428 && hz(i)<=359.611
+        m = ' 45F';                
+    elseif hz(i)>359.611 && hz(i)<=380.9945
+       m = ' 46#F';                     
+    elseif hz(i)>380.9945 && hz(i)<=403.65
+       m = ' 47G';                          
+    elseif hz(i)>403.65 && hz(i)<=427.6525
+        m = ' 48#G';                               
+    elseif hz(i)>427.6525 && hz(i)<=453.082
+       m = ' 49A';                                    
+    elseif hz(i)>453.082 && hz(i)<=480.0235
+        m = ' 50#A';                                         
+    elseif hz(i)>480.0235 && hz(i)<=508.567
+       m = ' 51B';
+    elseif hz(i)>508.567 && hz(i)<=538.808
+        m = ' 52C';
+    end
+    mus = strcat(mus,m);
+ 
+    
+    %识别音长
+    length_pai=length1(i)/len1;            %拍子修正算法
+    if(length_pai>0.55&&length_pai<1.45)
+        length_pai = 1;
+    elseif(length_pai>1.55&&length_pai<2.45)
+        length_pai = 2;
+    elseif(length_pai>2.55&&length_pai<3.45)
+        length_pai = 3;
+    elseif(length_pai>3.55&&length_pai<4.45)
+        length_pai = 4;
+    end
+    m1 = strcat('<',num2str(length_pai),'拍>');
+    mus = strcat(mus,m1);
+   
+    %识别空拍
+    if(i <= length(length_blank))
+        if(length_blank(i)>len1)
+             length_pai=length_blank(i)/len1;            %拍子修正算法
+            if(length_pai>0.55&&length_pai<1.45)
+                length_pai = 1;
+            elseif(length_pai>1.55&&length_pai<2.45)
+                length_pai = 2;
+            elseif(length_pai>2.55&&length_pai<3.45)
+                length_pai = 3;
+            elseif(length_pai>3.55&&length_pai<4.45)
+                length_pai = 4;
+            end
+            m2 = strcat('<--空',num2str(length_pai),'拍-->');
+            mus = strcat(mus,m2);
+        end
+    end
+    
+end
+disp(s2_len);
+disp(mus);
+
+%end
+
+Pyy = mag.* conj(mag) / N; % conj(Y)是求Y的共轭数
+ f=Fs*(0:N-1)/N; % 采样频率的一半为频率范围
+ plot(f,Pyy)
+xlim([0,2500])
+xlabel('Frequency(Hz)')
+ylabel('Amp')
+grid on
+
+function frameTime=frame2time(frameNum,framelen,inc,fs)
+% ================= 计算分帧后每一帧对应的时间=====================
+% ================= 输      入 ==================================
+%frameNum       :  总帧数
+%framelen       :  帧长
+%inc            :  帧移
+%fs             : 采样频率%
+%frametime      ： 每帧的时间，即取这一帧数据中间位置的时间
+    frameTime=(((1:frameNum)-1)*inc+framelen/2)/fs;
+end
